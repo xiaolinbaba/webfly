@@ -6,12 +6,16 @@ const App = {
     async init() {
         console.log('WebFly 初始化中...');
 
-        // 初始化组件
-        await Chat.init();
-        await QuickActions.init();
-
-        // 初始化设置面板
+        // 初始化设置面板 (优先初始化)
         this.initSettings();
+
+        try {
+            // 初始化组件
+            await Chat.init();
+            await QuickActions.init();
+        } catch (error) {
+            console.error('组件初始化失败:', error);
+        }
 
         console.log('WebFly 初始化完成');
     },
@@ -263,7 +267,7 @@ const App = {
             const item = document.createElement('div');
             item.className = 'prompt-item';
             item.innerHTML = `
-        <div class="prompt-icon">${prompt.icon || '📝'}</div>
+        <div class="prompt-icon">${prompt.icon || ''}</div>
         <div class="prompt-info">
           <div class="prompt-name">${prompt.name}</div>
           <div class="prompt-preview">${prompt.content.slice(0, 50)}...</div>
@@ -304,7 +308,7 @@ const App = {
         saveBtn.addEventListener('click', async () => {
             const prompt = {
                 name: document.getElementById('prompt-name').value,
-                icon: document.getElementById('prompt-icon').value || '📝',
+                icon: document.getElementById('prompt-icon').value || '',
                 content: document.getElementById('prompt-content').value
             };
 

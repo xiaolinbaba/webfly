@@ -13,13 +13,23 @@ const Chat = {
         this.userInput = document.getElementById('user-input');
         this.sendBtn = document.getElementById('send-btn');
         this.clearChatBtn = document.getElementById('clear-chat-btn');
-        this.modelIndicator = document.getElementById('current-model');
-        this.modelDot = document.querySelector('.model-dot');
+        // this.modelIndicator 已移除
+        this.pageTitle = document.getElementById('page-title');
+        this.pageUrl = document.getElementById('page-url');
         this.pageTitle = document.getElementById('page-title');
         this.pageUrl = document.getElementById('page-url');
 
         // 绑定事件
         this.bindEvents();
+
+        // 绑定关闭上下文卡片事件
+        this.closeContextBtn = document.getElementById('close-context-btn');
+        this.pageContextCard = document.getElementById('page-context-card');
+        if (this.closeContextBtn) {
+            this.closeContextBtn.addEventListener('click', () => {
+                this.pageContextCard.classList.add('hidden');
+            });
+        }
 
         // 加载当前提供商
         await this.loadProvider();
@@ -29,6 +39,18 @@ const Chat = {
 
         // 加载聊天历史
         await this.loadHistory();
+
+        // 监听标签页切换
+        chrome.tabs.onActivated.addListener(() => {
+            this.loadPageInfo();
+        });
+
+        // 监听标签页URL变化
+        chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+            if (changeInfo.status === 'complete') {
+                this.loadPageInfo();
+            }
+        });
     },
 
     // 绑定事件
@@ -60,15 +82,9 @@ const Chat = {
         this.updateModelIndicator();
     },
 
-    // 更新模型指示器
+    // 更新模型指示器 (UI已移除，保留方法防报错)
     updateModelIndicator() {
-        if (this.currentProvider) {
-            this.modelIndicator.textContent = `${this.currentProvider.name} · ${this.currentProvider.model}`;
-            this.modelDot.classList.remove('error', 'warning');
-        } else {
-            this.modelIndicator.textContent = '未配置模型';
-            this.modelDot.classList.add('warning');
-        }
+        // ID: current-model 已从 DOM 中移除
     },
 
     // 加载页面信息
@@ -84,10 +100,9 @@ const Chat = {
                     this.messages = [];
                     this.messagesContainer.innerHTML = `
                         <div class="welcome-message">
-                            <div class="welcome-icon">🦋</div>
-                            <h2>欢迎使用 WebFly</h2>
-                            <p>我可以帮你处理当前网页的内容，比如总结、翻译、解释等。</p>
-                            <p class="hint">选择下方的快捷操作，或直接输入你的问题。</p>
+                            <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
+                            <h3>WebFly</h3>
+                            <p>Ready to help</p>
                         </div>
                     `;
                 }
@@ -263,17 +278,18 @@ const Chat = {
         if (isStreaming) {
             contentEl.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
         } else {
-            if (role === 'user' && isCollapsed && content.length > 200) {
-                // 用户长消息折叠显示
-                const preview = content.slice(0, 100) + '...';
+            if (role === 'user' && isCollapsed && content.length > 100) {
+                // 用户长消息显示为链接卡片样式
+                const pageTitle = this.pageContent?.title || '页面内容';
+                const pageUrl = this.pageContent?.url || '';
+                const shortUrl = pageUrl.length > 50 ? pageUrl.slice(0, 50) + '...' : pageUrl;
                 contentEl.innerHTML = `
-                    <div class="collapsed-message">
-                        <div class="message-preview">${this.escapeHtml(preview)}</div>
-                        <button class="expand-btn" onclick="this.parentElement.classList.toggle('expanded')">
-                            <span class="expand-text">展开</span>
-                            <span class="collapse-text">收起</span>
-                        </button>
-                        <div class="message-full">${this.escapeHtml(content)}</div>
+                    <div class="message-link-card">
+                        <div class="link-icon">📄</div>
+                        <div class="link-info">
+                            <div class="link-title">${this.escapeHtml(pageTitle)}</div>
+                            <div class="link-url">${this.escapeHtml(shortUrl)}</div>
+                        </div>
                     </div>
                 `;
             } else {
@@ -351,14 +367,18 @@ const Chat = {
     // 清空对话
     async clearChat() {
         this.messages = [];
-        this.messagesContainer.innerHTML = `
-      <div class="welcome-message">
-        <div class="welcome-icon">🦋</div>
-        <h2>欢迎使用 WebFly</h2>
-        <p>我可以帮你处理当前网页的内容，比如总结、翻译、解释等。</p>
-        <p class="hint">选择下方的快捷操作，或直接输入你的问题。</p>
-      </div>
-    `;
+        this.messages = [];
+        this.messagesContainer.innerHTML = ''; // 清空消息
+
+        // 可选：添加一个简单的欢迎占位
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'welcome-message';
+        welcomeDiv.innerHTML = `
+            <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
+            <h3>WebFly</h3>
+            <p>Ready to help</p>
+        `;
+        this.messagesContainer.appendChild(welcomeDiv);
 
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs[0]) {

@@ -7,7 +7,7 @@ const QuickActions = {
 
     // 初始化
     async init() {
-        this.container = document.getElementById('quick-actions');
+        this.container = document.getElementById('quick-actions-container');
         await this.loadPrompts();
         this.render();
     },
@@ -27,7 +27,7 @@ const QuickActions = {
             btn.className = 'quick-action-btn';
             btn.title = prompt.name;
             btn.innerHTML = `
-        <span class="icon">${prompt.icon || '📝'}</span>
+        <span class="icon">${prompt.icon || ''}</span>
         <span class="text">${prompt.name}</span>
       `;
 
@@ -38,13 +38,11 @@ const QuickActions = {
 
         // 添加新建按钮
         const addBtn = document.createElement('button');
-        addBtn.className = 'add-action-btn';
+        addBtn.className = 'quick-action-btn add-new';
         addBtn.title = '创建快捷操作';
         addBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
+      <span class="icon">+</span>
+      <span class="text">New</span>
     `;
 
         addBtn.addEventListener('click', () => {
