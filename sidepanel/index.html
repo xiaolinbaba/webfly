@@ -1,0 +1,248 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebFly - AI 网页助手</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div id="app">
+    <!-- 头部 -->
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">🦋</span>
+        <h1 class="title">WebFly</h1>
+      </div>
+      <div class="header-right">
+        <button id="clear-chat-btn" class="icon-btn" title="清空对话">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3,6 5,6 21,6"></polyline>
+            <path
+              d="M19,6 L19,20 C19,21.1 18.1,22 17,22 L7,22 C5.9,22 5,21.1 5,20 L5,6 M8,6 L8,4 C8,2.9 8.9,2 10,2 L14,2 C15.1,2 16,2.9 16,4 L16,6">
+            </path>
+          </svg>
+        </button>
+        <button id="settings-btn" class="icon-btn" title="设置">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M12,1 L12,3 M12,21 L12,23 M4.22,4.22 L5.64,5.64 M18.36,18.36 L19.78,19.78 M1,12 L3,12 M21,12 L23,12 M4.22,19.78 L5.64,18.36 M18.36,5.64 L19.78,4.22">
+            </path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 当前页面信息 -->
+    <div id="page-info" class="page-info">
+      <div class="page-info-icon">📄</div>
+      <div class="page-info-content">
+        <div class="page-title" id="page-title">加载中...</div>
+        <div class="page-url" id="page-url"></div>
+      </div>
+    </div>
+
+    <!-- 聊天消息区域 -->
+    <div id="messages" class="messages">
+      <div class="welcome-message">
+        <div class="welcome-icon">🦋</div>
+        <h2>欢迎使用 WebFly</h2>
+        <p>我可以帮你处理当前网页的内容，比如总结、翻译、解释等。</p>
+        <p class="hint">选择下方的快捷操作，或直接输入你的问题。</p>
+      </div>
+    </div>
+
+    <!-- 快捷操作栏 -->
+    <div class="quick-actions" id="quick-actions">
+      <!-- 动态生成 -->
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="input-area">
+      <div class="input-container">
+        <textarea id="user-input" placeholder="输入消息，按 Enter 发送..." rows="1"></textarea>
+        <button id="send-btn" class="send-btn" title="发送">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </button>
+      </div>
+      <div class="model-indicator" id="model-indicator">
+        <span class="model-dot"></span>
+        <span id="current-model">未配置模型</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置面板 -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-header">
+      <button id="back-btn" class="icon-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <h2>设置</h2>
+    </div>
+
+    <div class="settings-content">
+      <!-- 导航标签 -->
+      <div class="settings-tabs">
+        <button class="tab-btn active" data-tab="providers">模型提供商</button>
+        <button class="tab-btn" data-tab="prompts">快捷操作</button>
+        <button class="tab-btn" data-tab="about">关于</button>
+      </div>
+
+      <!-- 模型提供商设置 -->
+      <div id="tab-providers" class="tab-content active">
+        <div class="section">
+          <div class="section-header">
+            <h3>BYOK (Bring Your Own Key)</h3>
+            <p class="section-desc">使用您自己的 API 密钥访问 AI 模型</p>
+          </div>
+
+          <div id="providers-list" class="providers-list">
+            <!-- 动态生成 -->
+          </div>
+
+          <button id="add-provider-btn" class="add-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            添加提供商
+          </button>
+        </div>
+      </div>
+
+      <!-- 快捷操作设置 -->
+      <div id="tab-prompts" class="tab-content">
+        <div class="section">
+          <div class="section-header">
+            <h3>快捷操作</h3>
+            <p class="section-desc">使用快捷操作即时向 AI 发送消息</p>
+          </div>
+
+          <button id="add-prompt-btn" class="add-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            创建快捷操作
+          </button>
+
+          <div id="prompts-list" class="prompts-list">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 关于 -->
+      <div id="tab-about" class="tab-content">
+        <div class="section">
+          <div class="about-info">
+            <div class="about-logo">🦋</div>
+            <h3>WebFly</h3>
+            <p class="version">版本 1.0.0</p>
+            <p class="description">通过 AI 模型智能处理网页内容</p>
+            <div class="about-links">
+              <a href="https://github.com" target="_blank">GitHub</a>
+              <span class="divider">·</span>
+              <a href="#" id="privacy-link">隐私政策</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加提供商对话框 -->
+  <div id="provider-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="provider-modal-title">添加模型提供商</h3>
+        <button class="modal-close" id="close-provider-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>提供商类型</label>
+          <select id="provider-type">
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Gemini (Google)</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问 (Qwen)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="form-group" id="custom-name-group" style="display:none;">
+          <label>自定义名称</label>
+          <input type="text" id="provider-custom-name" placeholder="例如：My API">
+        </div>
+        <div class="form-group" id="custom-url-group" style="display:none;">
+          <label>API Base URL</label>
+          <input type="text" id="provider-base-url" placeholder="https://api.example.com/v1">
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="password" id="provider-api-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <label>默认模型</label>
+          <input type="text" id="provider-model" placeholder="gpt-4o-mini">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-provider">取消</button>
+        <button class="btn-primary" id="save-provider">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加 Prompt 对话框 -->
+  <div id="prompt-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="prompt-modal-title">创建快捷操作</h3>
+        <button class="modal-close" id="close-prompt-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>名称</label>
+          <input type="text" id="prompt-name" placeholder="例如：总结">
+        </div>
+        <div class="form-group">
+          <label>图标 (Emoji)</label>
+          <input type="text" id="prompt-icon" placeholder="📝" maxlength="2">
+        </div>
+        <div class="form-group">
+          <label>Prompt 内容</label>
+          <textarea id="prompt-content" rows="6"
+            placeholder="请总结以下网页内容...&#10;&#10;使用 {{content}} 插入网页内容&#10;使用 {{selection}} 插入选中文本"></textarea>
+          <p class="form-hint">可用变量：<code>{{content}}</code> 网页内容，<code>{{selection}}</code> 选中文本，<code>{{title}}</code>
+            页面标题，<code>{{url}}</code> 页面URL</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-prompt">取消</button>
+        <button class="btn-danger" id="delete-prompt" style="display:none;">删除</button>
+        <button class="btn-primary" id="save-prompt">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/marked.min.js"></script>
+  <script src="lib/markdown.js"></script>
+  <script src="lib/storage.js"></script>
+  <script src="lib/api.js"></script>
+  <script src="components/chat.js"></script>
+  <script src="components/quick-actions.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

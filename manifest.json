@@ -1,0 +1,43 @@
+﻿{
+  "manifest_version": 3,
+  "name": "WebFly - AI 网页助手",
+  "version": "1.0.0",
+  "description": "通过 AI 模型智能处理网页内容，支持总结、翻译、问答等功能",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "sidePanel",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "WebFly - AI 网页助手"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
