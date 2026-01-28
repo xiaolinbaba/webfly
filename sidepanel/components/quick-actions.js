@@ -26,32 +26,12 @@ const QuickActions = {
             const btn = document.createElement('button');
             btn.className = 'quick-action-btn';
             btn.title = prompt.name;
-            btn.innerHTML = `
-        <span class="icon">${prompt.icon || ''}</span>
-        <span class="text">${prompt.name}</span>
-      `;
+            btn.textContent = prompt.name;
 
             btn.addEventListener('click', () => this.executePrompt(prompt));
 
             this.container.appendChild(btn);
         });
-
-        // 添加新建按钮
-        const addBtn = document.createElement('button');
-        addBtn.className = 'quick-action-btn add-new';
-        addBtn.title = '创建快捷操作';
-        addBtn.innerHTML = `
-      <span class="icon">+</span>
-      <span class="text">New</span>
-    `;
-
-        addBtn.addEventListener('click', () => {
-            // 打开设置面板的快捷操作标签
-            document.getElementById('settings-panel').classList.remove('hidden');
-            document.querySelector('[data-tab="prompts"]').click();
-        });
-
-        this.container.appendChild(addBtn);
     },
 
     // 执行 Prompt

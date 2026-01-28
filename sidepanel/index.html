@@ -40,10 +40,6 @@
       <div class="welcome-message">
         <!-- 欢迎内容可动态填充或保持空，视设计而定 -->
       </div>
-      <!-- 快捷操作栏 -->
-      <div class="quick-actions-container" id="quick-actions-container">
-        <!-- 动态生成 -->
-      </div>
     </div>
 
     <!-- 悬浮底部区域 -->
@@ -82,6 +78,11 @@
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>
           </button>
+        </div>
+
+        <!-- 快捷操作栏 -->
+        <div class="quick-actions-container" id="quick-actions-container">
+          <!-- 动态生成 -->
         </div>
       </div>
     </div>
@@ -212,10 +213,6 @@
           <input type="text" id="prompt-name" placeholder="例如：总结">
         </div>
         <div class="form-group">
-          <label>图标 (Emoji)</label>
-          <input type="text" id="prompt-icon" placeholder="📝" maxlength="2">
-        </div>
-        <div class="form-group">
           <label>Prompt 内容</label>
           <textarea id="prompt-content" rows="6"
             placeholder="请总结以下网页内容...&#10;&#10;使用 {{content}} 插入网页内容&#10;使用 {{selection}} 插入选中文本"></textarea>
@@ -232,6 +229,7 @@
   </div>
 
   <script src="lib/marked.min.js"></script>
+  <script src="lib/mermaid.min.js"></script>
   <script src="lib/markdown.js"></script>
   <script src="lib/storage.js"></script>
   <script src="lib/api.js"></script>

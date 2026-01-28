@@ -308,7 +308,6 @@ const App = {
         saveBtn.addEventListener('click', async () => {
             const prompt = {
                 name: document.getElementById('prompt-name').value,
-                icon: document.getElementById('prompt-icon').value || '',
                 content: document.getElementById('prompt-content').value
             };
 
@@ -352,7 +351,6 @@ const App = {
             this.editingPromptId = prompt.id;
 
             document.getElementById('prompt-name').value = prompt.name || '';
-            document.getElementById('prompt-icon').value = prompt.icon || '';
             document.getElementById('prompt-content').value = prompt.content || '';
 
             deleteBtn.style.display = 'block';
@@ -361,7 +359,6 @@ const App = {
             this.editingPromptId = null;
 
             document.getElementById('prompt-name').value = '';
-            document.getElementById('prompt-icon').value = '';
             document.getElementById('prompt-content').value = '';
 
             deleteBtn.style.display = 'none';

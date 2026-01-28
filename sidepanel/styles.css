@@ -131,8 +131,8 @@ body {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 16px 180px 16px;
-  /* 底部留出足够空间给悬浮 Footer */
+  padding: 16px 16px 240px 16px;
+  /* 底部留出足够空间给悬浮 Footer（含快捷操作按钮） */
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -190,47 +190,36 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* 快捷操作区 (Pills) */
+/* 快捷操作区 - 输入卡片底部 */
 .quick-actions-container {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  /* 右对齐 */
-  gap: 8px;
-  margin-top: auto;
-  /* 靠下排列 */
-}
-
-.quick-action-btn {
-  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
-  background: var(--bg-hover);
-  /* 浅色背景 */
-  border: 1px solid transparent;
-  border-radius: 20px;
-  /* 胶囊形状 */
-  font-size: 13px;
-  color: var(--accent-color);
-  font-weight: 500;
+  margin-top: 8px;
+}
+
+/* 快捷操作按钮 - 简洁紧凑风格 */
+.quick-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .quick-action-btn:hover {
-  background: var(--accent-light);
-  color: var(--accent-hover);
-  transform: translateY(-1px);
-}
-
-.quick-action-btn .icon {
-  font-size: 14px;
-}
-
-/* icon为空时隐藏 */
-.quick-action-btn .icon:empty {
-  display: none;
+  background: var(--bg-hover);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
 }
 
 /* 消息中的链接卡片样式 */
@@ -543,6 +532,39 @@ body {
   font-size: 1.1em;
   margin-top: 0.5em;
   margin-bottom: 0.3em;
+}
+
+/* 列表样式 - 防止项目符号超出边界 */
+.message-content ul,
+.message-content ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.message-content li {
+  margin: 0.25em 0;
+}
+
+/* Mermaid 图表容器 */
+.mermaid-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mermaid 渲染错误 */
+.mermaid-error {
+  border-left: 3px solid #e74c3c;
+  background: rgba(231, 76, 60, 0.05);
 }
 
 /* 设置面板 */

@@ -8,29 +8,29 @@ const API = {
             name: 'OpenAI',
             icon: '🤖',
             baseUrl: 'https://api.openai.com/v1',
-            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-            defaultModel: 'gpt-4o-mini'
+            models: ['gpt-5.1-mini', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+            defaultModel: 'gpt-5.1-mini'
         },
         gemini: {
             name: 'Gemini',
             icon: '✨',
             baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-            defaultModel: 'gemini-2.0-flash-exp'
+            models: ['gemini-3-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+            defaultModel: 'gemini-3-flash'
         },
         deepseek: {
             name: 'DeepSeek',
             icon: '🔮',
             baseUrl: 'https://api.deepseek.com/v1',
-            models: ['deepseek-chat', 'deepseek-reasoner'],
-            defaultModel: 'deepseek-chat'
+            models: ['deepseek-v3.2', 'deepseek-chat', 'deepseek-reasoner'],
+            defaultModel: 'deepseek-v3.2'
         },
         qwen: {
             name: '通义千问',
             icon: '🌟',
             baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            models: ['qwen-plus', 'qwen-turbo', 'qwen-max'],
-            defaultModel: 'qwen-plus'
+            models: ['qwen3-max-2026-01-23', 'qwen-plus', 'qwen-turbo', 'qwen-max'],
+            defaultModel: 'qwen3-max-2026-01-23'
         },
         openrouter: {
             name: 'OpenRouter',

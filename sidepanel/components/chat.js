@@ -13,9 +13,6 @@ const Chat = {
         this.userInput = document.getElementById('user-input');
         this.sendBtn = document.getElementById('send-btn');
         this.clearChatBtn = document.getElementById('clear-chat-btn');
-        // this.modelIndicator 已移除
-        this.pageTitle = document.getElementById('page-title');
-        this.pageUrl = document.getElementById('page-url');
         this.pageTitle = document.getElementById('page-title');
         this.pageUrl = document.getElementById('page-url');
 
@@ -79,12 +76,6 @@ const Chat = {
     // 加载提供商配置
     async loadProvider() {
         this.currentProvider = await Storage.getActiveProvider();
-        this.updateModelIndicator();
-    },
-
-    // 更新模型指示器 (UI已移除，保留方法防报错)
-    updateModelIndicator() {
-        // ID: current-model 已从 DOM 中移除
     },
 
     // 加载页面信息
@@ -249,11 +240,17 @@ const Chat = {
 
     // 添加消息
     addMessage(role, content, isStreaming = false, isCollapsed = false) {
+        // 使用时间戳 + 随机数 + 角色后缀，确保 ID 唯一
+        const uniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${role}`;
         const message = {
-            id: Date.now(),
+            id: uniqueId,
             role,
             content,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            isCollapsed: isCollapsed,
+            // 保存页面信息，用于刷新后渲染卡片
+            pageTitle: this.pageContent?.title || '',
+            pageUrl: this.pageContent?.url || ''
         };
 
         // 只有完整的用户消息才加入历史
@@ -312,6 +309,7 @@ const Chat = {
         if (messageEl) {
             const contentEl = messageEl.querySelector('.message-content');
             contentEl.innerHTML = Markdown.renderMessage(content);
+            // 流式输出时不渲染 Mermaid，等消息完成后再渲染
             this.scrollToBottom();
         }
     },
@@ -325,6 +323,11 @@ const Chat = {
             if (typingIndicator) {
                 typingIndicator.remove();
             }
+            // 消息完成后渲染 Mermaid 图表
+            const contentEl = messageEl.querySelector('.message-content');
+            if (contentEl) {
+                Markdown.renderMermaidInElement(contentEl);
+            }
         }
 
         this.messages.push({
@@ -337,12 +340,20 @@ const Chat = {
 
     // 渲染所有消息
     renderMessages() {
-        if (this.messages.length === 0) return;
+        // 先清空容器中的所有消息（保留结构）
+        this.messagesContainer.innerHTML = '';
 
-        // 移除欢迎消息
-        const welcomeMessage = this.messagesContainer.querySelector('.welcome-message');
-        if (welcomeMessage) {
-            welcomeMessage.remove();
+        if (this.messages.length === 0) {
+            // 如果没有消息，显示欢迎消息
+            const welcomeDiv = document.createElement('div');
+            welcomeDiv.className = 'welcome-message';
+            welcomeDiv.innerHTML = `
+                <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
+                <h3>WebFly</h3>
+                <p>Ready to help</p>
+            `;
+            this.messagesContainer.appendChild(welcomeDiv);
+            return;
         }
 
         // 渲染历史消息
@@ -353,12 +364,34 @@ const Chat = {
 
             const contentEl = document.createElement('div');
             contentEl.className = 'message-content';
-            contentEl.innerHTML = msg.role === 'assistant'
-                ? Markdown.renderMessage(msg.content)
-                : this.escapeHtml(msg.content);
+
+            // 检查是否需要以卡片形式显示
+            if (msg.role === 'user' && msg.isCollapsed && msg.content.length > 100) {
+                const pageTitle = msg.pageTitle || '页面内容';
+                const pageUrl = msg.pageUrl || '';
+                const shortUrl = pageUrl.length > 50 ? pageUrl.slice(0, 50) + '...' : pageUrl;
+                contentEl.innerHTML = `
+                    <div class="message-link-card">
+                        <div class="link-icon">📄</div>
+                        <div class="link-info">
+                            <div class="link-title">${this.escapeHtml(pageTitle)}</div>
+                            <div class="link-url">${this.escapeHtml(shortUrl)}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                contentEl.innerHTML = msg.role === 'assistant'
+                    ? Markdown.renderMessage(msg.content)
+                    : this.escapeHtml(msg.content);
+            }
 
             messageEl.appendChild(contentEl);
             this.messagesContainer.appendChild(messageEl);
+
+            // 渲染 Mermaid 图表
+            if (msg.role === 'assistant') {
+                Markdown.renderMermaidInElement(contentEl);
+            }
         });
 
         this.scrollToBottom();
@@ -366,7 +399,6 @@ const Chat = {
 
     // 清空对话
     async clearChat() {
-        this.messages = [];
         this.messages = [];
         this.messagesContainer.innerHTML = ''; // 清空消息
 
@@ -380,9 +412,9 @@ const Chat = {
         `;
         this.messagesContainer.appendChild(welcomeDiv);
 
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tabs[0]) {
-            await Storage.clearChatHistory(tabs[0].id);
+        // 按 URL 清除聊天历史
+        if (this.pageContent && this.pageContent.url) {
+            await Storage.clearChatHistoryByUrl(this.pageContent.url);
         }
     },
 

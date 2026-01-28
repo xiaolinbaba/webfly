@@ -1,9 +1,13 @@
 ﻿// WebFly Markdown Module
-// Markdown 渲染封装
+// Markdown 渲染封装 + Mermaid 支持
 
 const Markdown = {
-    // 初始化 marked 配置
+    mermaidInitialized: false,
+    mermaidIdCounter: 0,
+
+    // 初始化 marked 和 mermaid 配置
     init() {
+        // 初始化 marked
         if (typeof marked !== 'undefined') {
             marked.setOptions({
                 breaks: true,
@@ -11,6 +15,22 @@ const Markdown = {
                 headerIds: false,
                 mangle: false
             });
+        }
+
+        // 初始化 mermaid
+        this.initMermaid();
+    },
+
+    // 初始化 Mermaid
+    initMermaid() {
+        if (typeof mermaid !== 'undefined' && !this.mermaidInitialized) {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: 'default',
+                securityLevel: 'loose',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            });
+            this.mermaidInitialized = true;
         }
     },
 
@@ -63,10 +83,50 @@ const Markdown = {
         return div.innerHTML;
     },
 
-    // 渲染消息内容（带安全处理）
+    // 渲染消息内容（带安全处理和 Mermaid 渲染）
     renderMessage(text) {
-        const html = this.render(text);
-        return this.sanitizeHtml(html);
+        let html = this.render(text);
+        html = this.sanitizeHtml(html);
+        return html;
+    },
+
+    // 渲染 Mermaid 图表（在 DOM 插入后调用）
+    async renderMermaidInElement(container) {
+        if (typeof mermaid === 'undefined') return;
+
+        this.initMermaid();
+
+        // 只查找明确标记为 mermaid 的代码块
+        const codeBlocks = container.querySelectorAll('pre code.language-mermaid');
+
+        for (const codeBlock of codeBlocks) {
+            const pre = codeBlock.parentElement;
+            const code = codeBlock.textContent.trim();
+
+            if (!code) continue;
+
+            // 已经渲染过的跳过
+            if (pre.classList.contains('mermaid-rendered')) continue;
+
+            try {
+                // 生成唯一 ID
+                const id = `mermaid-${Date.now()}-${this.mermaidIdCounter++}`;
+
+                // 渲染 Mermaid
+                const { svg } = await mermaid.render(id, code);
+
+                // 创建容器替换 pre
+                const mermaidContainer = document.createElement('div');
+                mermaidContainer.className = 'mermaid-container';
+                mermaidContainer.innerHTML = svg;
+
+                pre.replaceWith(mermaidContainer);
+            } catch (e) {
+                console.error('Mermaid 渲染错误:', e);
+                // 标记为已处理，避免重复尝试
+                pre.classList.add('mermaid-rendered', 'mermaid-error');
+            }
+        }
     },
 
     // 简单的 HTML 清理（保留安全标签）
@@ -103,3 +163,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 导出
 window.Markdown = Markdown;
+
