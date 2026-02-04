@@ -13,6 +13,7 @@ const Chat = {
         this.userInput = document.getElementById('user-input');
         this.sendBtn = document.getElementById('send-btn');
         this.clearChatBtn = document.getElementById('clear-chat-btn');
+        this.copyPageBtn = document.getElementById('copy-page-btn');
         this.pageTitle = document.getElementById('page-title');
         this.pageUrl = document.getElementById('page-url');
 
@@ -71,6 +72,11 @@ const Chat = {
 
         // 清空对话
         this.clearChatBtn.addEventListener('click', () => this.clearChat());
+
+        // 复制页面内容
+        if (this.copyPageBtn) {
+            this.copyPageBtn.addEventListener('click', () => this.copyPageContent());
+        }
     },
 
     // 加载提供商配置
@@ -294,6 +300,21 @@ const Chat = {
             }
         }
 
+        // 为assistant消息添加复制按钮
+        if (role === 'assistant' && !isStreaming) {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-message-btn';
+            copyBtn.title = '复制内容';
+            copyBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            `;
+            copyBtn.addEventListener('click', () => this.copyMessageContent(content, copyBtn));
+            messageEl.appendChild(copyBtn);
+        }
+
         messageEl.appendChild(contentEl);
         this.messagesContainer.appendChild(messageEl);
 
@@ -386,6 +407,22 @@ const Chat = {
             }
 
             messageEl.appendChild(contentEl);
+
+            // 为assistant消息添加复制按钮
+            if (msg.role === 'assistant') {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-message-btn';
+                copyBtn.title = '复制内容';
+                copyBtn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                `;
+                copyBtn.addEventListener('click', () => this.copyMessageContent(msg.content, copyBtn));
+                messageEl.appendChild(copyBtn);
+            }
+
             this.messagesContainer.appendChild(messageEl);
 
             // 渲染 Mermaid 图表
@@ -442,6 +479,70 @@ const Chat = {
     // 刷新提供商配置
     async refreshProvider() {
         await this.loadProvider();
+    },
+
+    // 复制页面内容
+    async copyPageContent() {
+        if (!this.pageContent) {
+            await this.loadPageInfo();
+        }
+
+        if (!this.pageContent) {
+            this.showCopyFeedback(this.copyPageBtn, false);
+            return;
+        }
+
+        const content = `页面标题：${this.pageContent.title || '未知'}\n页面链接：${this.pageContent.url || '未知'}\n页面内容：${this.pageContent.content || '无内容'}`;
+
+        try {
+            await navigator.clipboard.writeText(content);
+            this.showCopyFeedback(this.copyPageBtn, true);
+        } catch (err) {
+            console.error('复制失败:', err);
+            this.showCopyFeedback(this.copyPageBtn, false);
+        }
+    },
+
+    // 复制消息内容
+    async copyMessageContent(content, button) {
+        try {
+            await navigator.clipboard.writeText(content);
+            this.showCopyFeedback(button, true);
+        } catch (err) {
+            console.error('复制失败:', err);
+            this.showCopyFeedback(button, false);
+        }
+    },
+
+    // 显示复制反馈
+    showCopyFeedback(button, success) {
+        const originalHTML = button.innerHTML;
+        const originalTitle = button.title;
+
+        if (success) {
+            button.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            `;
+            button.title = '已复制';
+            button.style.color = '#10b981';
+        } else {
+            button.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            `;
+            button.title = '复制失败';
+            button.style.color = '#ef4444';
+        }
+
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.title = originalTitle;
+            button.style.color = '';
+        }, 2000);
     }
 };
 
