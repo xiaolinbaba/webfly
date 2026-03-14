@@ -1,4 +1,4 @@
-﻿// WebFly API Module
+// WebFly API Module
 // OpenAI 兼容 API 封装
 
 const API = {
@@ -29,8 +29,8 @@ const API = {
             name: '通义千问',
             icon: '🌟',
             baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            models: ['qwen3-max-2026-01-23', 'qwen-plus', 'qwen-turbo', 'qwen-max'],
-            defaultModel: 'qwen3-max-2026-01-23'
+            models: ['qwen3.5-plus', 'qwen3.5-plus-2026-02-15', 'qwen-plus', 'qwen-plus-latest', 'qwen-turbo', 'qwen-max'],
+            defaultModel: 'qwen3.5-plus'
         },
         openrouter: {
             name: 'OpenRouter',
@@ -68,11 +68,7 @@ const API = {
         console.log('[WebFly] 请求URL:', url);
 
         try {
-            const requestBody = {
-                model: model,
-                messages: messages,
-                stream: true
-            };
+            const requestBody = this.buildChatRequestBody(provider, messages, true);
 
             console.log('[WebFly] 请求体:', JSON.stringify(requestBody, null, 2));
 
@@ -130,7 +126,7 @@ const API = {
                         try {
                             const jsonStr = trimmedLine.slice(6);
                             const data = JSON.parse(jsonStr);
-                            const content = data.choices?.[0]?.delta?.content;
+                            const content = this.extractStreamText(data);
                             if (content) {
                                 fullContent += content;
                                 chunkCount++;
@@ -161,6 +157,7 @@ const API = {
         }
 
         const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+        const requestBody = this.buildChatRequestBody(provider, messages, false);
 
         const response = await fetch(url, {
             method: 'POST',
@@ -168,11 +165,7 @@ const API = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({
-                model: model,
-                messages: messages,
-                stream: false
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
@@ -181,7 +174,7 @@ const API = {
         }
 
         const data = await response.json();
-        return data.choices?.[0]?.message?.content || '';
+        return this.extractMessageText(data);
     },
 
     // 获取模型列表（如果 API 支持）
@@ -222,6 +215,65 @@ const API = {
         } catch (error) {
             return { success: false, message: error.message };
         }
+    },
+
+    buildChatRequestBody(provider, messages, stream) {
+        const requestBody = {
+            model: provider.model,
+            messages,
+            stream
+        };
+
+        // 官方文档说明 Qwen3.5 Plus/Flash 的混合推理默认开启。
+        // 对当前插件的总结/翻译等场景，默认关闭思考模式可避免长时间只返回 reasoning_content
+        // 导致前端看起来“无响应”或更容易超时。
+        if (this.shouldDisableThinkingByDefault(provider)) {
+            requestBody.enable_thinking = false;
+        }
+
+        return requestBody;
+    },
+
+    shouldDisableThinkingByDefault(provider) {
+        if (provider.type !== 'qwen' || !provider.model) {
+            return false;
+        }
+
+        return /^qwen3\.5-(plus|flash)(-|$)/i.test(provider.model);
+    },
+
+    extractStreamText(data) {
+        const delta = data.choices?.[0]?.delta;
+        if (!delta) {
+            return '';
+        }
+
+        if (typeof delta.content === 'string' && delta.content) {
+            return delta.content;
+        }
+
+        if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+            return delta.reasoning_content;
+        }
+
+        return '';
+    },
+
+    extractMessageText(data) {
+        const message = data.choices?.[0]?.message;
+        if (!message) {
+            return '';
+        }
+
+        if (typeof message.content === 'string' && message.content) {
+            return message.content;
+        }
+
+        if (typeof message.reasoning_content === 'string' && message.reasoning_content) {
+            return message.reasoning_content;
+        }
+
+        return '';
     }
 };
 

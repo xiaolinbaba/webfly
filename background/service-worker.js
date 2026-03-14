@@ -1,4 +1,4 @@
-﻿// WebFly Background Service Worker
+// WebFly Background Service Worker
 
 // 点击扩展图标时打开侧边栏
 chrome.action.onClicked.addListener(async (tab) => {
@@ -15,11 +15,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs[0]) {
         try {
+          const currentTab = tabs[0];
           const results = await chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
+            target: { tabId: currentTab.id },
             func: extractPageContent
           });
-          sendResponse({ success: true, data: results[0].result });
+          sendResponse({
+            success: true,
+            data: {
+              ...results[0].result,
+              favIconUrl: currentTab.favIconUrl || ''
+            }
+          });
         } catch (error) {
           sendResponse({ success: false, error: error.message });
         }
@@ -189,7 +196,8 @@ function extractPageContent() {
     title,
     url,
     content,
-    selectedText: window.getSelection().toString()
+    selectedText: window.getSelection().toString(),
+    favIconUrl: ''
   };
 }
 

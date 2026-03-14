@@ -1,4 +1,4 @@
-﻿// WebFly Chat Component
+// WebFly Chat Component
 // 聊天功能核心逻辑
 
 const Chat = {
@@ -13,7 +13,10 @@ const Chat = {
         this.userInput = document.getElementById('user-input');
         this.sendBtn = document.getElementById('send-btn');
         this.clearChatBtn = document.getElementById('clear-chat-btn');
+        this.copyLinkBtn = document.getElementById('copy-link-btn');
+        this.copyMarkdownLinkBtn = document.getElementById('copy-markdown-link-btn');
         this.copyPageBtn = document.getElementById('copy-page-btn');
+        this.downloadIconBtn = document.getElementById('download-icon-btn');
         this.pageTitle = document.getElementById('page-title');
         this.pageUrl = document.getElementById('page-url');
 
@@ -73,9 +76,21 @@ const Chat = {
         // 清空对话
         this.clearChatBtn.addEventListener('click', () => this.clearChat());
 
+        if (this.copyLinkBtn) {
+            this.copyLinkBtn.addEventListener('click', () => this.copyPageTitleAndUrl());
+        }
+
+        if (this.copyMarkdownLinkBtn) {
+            this.copyMarkdownLinkBtn.addEventListener('click', () => this.copyPageMarkdownLink());
+        }
+
         // 复制页面内容
         if (this.copyPageBtn) {
             this.copyPageBtn.addEventListener('click', () => this.copyPageContent());
+        }
+
+        if (this.downloadIconBtn) {
+            this.downloadIconBtn.addEventListener('click', () => this.downloadPageIcon());
         }
     },
 
@@ -503,6 +518,152 @@ const Chat = {
         }
     },
 
+    // 复制当前页面标题和链接
+    async copyPageTitleAndUrl() {
+        if (!this.pageContent) {
+            await this.loadPageInfo();
+        }
+
+        if (!this.pageContent) {
+            this.showCopyFeedback(this.copyLinkBtn, false);
+            return;
+        }
+
+        const title = this.pageContent.title || '未知页面';
+        const url = this.pageContent.url || '';
+        const content = `${title}\n${url}`;
+
+        try {
+            await navigator.clipboard.writeText(content);
+            this.showCopyFeedback(this.copyLinkBtn, true);
+        } catch (err) {
+            console.error('复制标题和链接失败:', err);
+            this.showCopyFeedback(this.copyLinkBtn, false);
+        }
+    },
+
+    // 复制当前页面 Markdown 链接
+    async copyPageMarkdownLink() {
+        if (!this.pageContent) {
+            await this.loadPageInfo();
+        }
+
+        if (!this.pageContent) {
+            this.showCopyFeedback(this.copyMarkdownLinkBtn, false);
+            return;
+        }
+
+        const title = this.escapeMarkdownLinkText(this.pageContent.title || '未知页面');
+        const url = this.pageContent.url || '';
+        const content = `[${title}](<${url}>)`;
+
+        try {
+            await navigator.clipboard.writeText(content);
+            this.showCopyFeedback(this.copyMarkdownLinkBtn, true);
+        } catch (err) {
+            console.error('复制 Markdown 链接失败:', err);
+            this.showCopyFeedback(this.copyMarkdownLinkBtn, false);
+        }
+    },
+
+    // 下载当前页面图标
+    async downloadPageIcon() {
+        if (!this.pageContent) {
+            await this.loadPageInfo();
+        }
+
+        const iconUrl = this.getPageIconUrl();
+        if (!iconUrl || !this.downloadIconBtn) {
+            this.showDownloadFeedback(this.downloadIconBtn, false);
+            return;
+        }
+
+        try {
+            const response = await fetch(iconUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = this.buildIconFileName(iconUrl, blob.type);
+            link.click();
+
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+            this.showDownloadFeedback(this.downloadIconBtn, true);
+        } catch (err) {
+            console.error('下载图标失败:', err);
+            this.showDownloadFeedback(this.downloadIconBtn, false);
+        }
+    },
+
+    getPageIconUrl() {
+        if (this.pageContent?.favIconUrl) {
+            return this.pageContent.favIconUrl;
+        }
+
+        if (!this.pageContent?.url) {
+            return '';
+        }
+
+        try {
+            return new URL('/favicon.ico', this.pageContent.url).toString();
+        } catch (error) {
+            console.error('构建图标地址失败:', error);
+            return '';
+        }
+    },
+
+    buildIconFileName(iconUrl, mimeType = '') {
+        const host = this.getPageHostName();
+        const extension = this.getIconExtension(iconUrl, mimeType);
+        return `icon-${host}.${extension}`;
+    },
+
+    getPageHostName() {
+        if (!this.pageContent?.url) {
+            return 'current-tab';
+        }
+
+        try {
+            return new URL(this.pageContent.url).hostname.replace(/^www\./, '') || 'current-tab';
+        } catch (error) {
+            console.error('解析页面域名失败:', error);
+            return 'current-tab';
+        }
+    },
+
+    getIconExtension(iconUrl, mimeType = '') {
+        const mimeToExtensionMap = {
+            'image/png': 'png',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/webp': 'webp',
+            'image/gif': 'gif',
+            'image/svg+xml': 'svg',
+            'image/x-icon': 'ico',
+            'image/vnd.microsoft.icon': 'ico'
+        };
+
+        if (mimeToExtensionMap[mimeType]) {
+            return mimeToExtensionMap[mimeType];
+        }
+
+        try {
+            const pathname = new URL(iconUrl).pathname;
+            const match = pathname.match(/\.([a-z0-9]+)$/i);
+            if (match) {
+                return match[1].toLowerCase();
+            }
+        } catch (error) {
+            console.error('解析图标扩展名失败:', error);
+        }
+
+        return 'ico';
+    },
+
     // 复制消息内容
     async copyMessageContent(content, button) {
         try {
@@ -514,8 +675,24 @@ const Chat = {
         }
     },
 
-    // 显示复制反馈
+    escapeMarkdownLinkText(text) {
+        return text.replace(/([\\\[\]])/g, '\\$1');
+    },
+
     showCopyFeedback(button, success) {
+        this.showButtonFeedback(button, success, '已复制', '复制失败');
+    },
+
+    showDownloadFeedback(button, success) {
+        this.showButtonFeedback(button, success, '已下载', '下载失败');
+    },
+
+    // 显示按钮反馈
+    showButtonFeedback(button, success, successTitle, errorTitle) {
+        if (!button) {
+            return;
+        }
+
         const originalHTML = button.innerHTML;
         const originalTitle = button.title;
 
@@ -525,7 +702,7 @@ const Chat = {
                     <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
             `;
-            button.title = '已复制';
+            button.title = successTitle;
             button.style.color = '#10b981';
         } else {
             button.innerHTML = `
@@ -534,7 +711,7 @@ const Chat = {
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             `;
-            button.title = '复制失败';
+            button.title = errorTitle;
             button.style.color = '#ef4444';
         }
 
