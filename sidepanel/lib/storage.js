@@ -1,4 +1,4 @@
-﻿// WebFly Storage Module
+// WebFly Storage Module
 // Chrome Storage API 封装
 
 const Storage = {
@@ -28,38 +28,64 @@ const Storage = {
         ],
         theme: 'auto'
     },
+    localKeys: new Set(['providers', 'activeProviderId']),
+    migrationPromise: null,
 
     // 获取所有设置
     async getAll() {
-        return new Promise((resolve) => {
-            chrome.storage.sync.get(this.defaults, (result) => {
-                resolve(result);
-            });
-        });
+        await this.ensureSensitiveDataMigration();
+
+        const [syncData, localData] = await Promise.all([
+            this.getFromArea('sync', {
+                prompts: this.defaults.prompts,
+                theme: this.defaults.theme
+            }),
+            this.getFromArea('local', {
+                providers: this.defaults.providers,
+                activeProviderId: this.defaults.activeProviderId
+            })
+        ]);
+
+        return { ...syncData, ...localData };
     },
 
     // 获取单个设置
     async get(key) {
-        const all = await this.getAll();
-        return all[key];
+        await this.ensureSensitiveDataMigration();
+        const area = this.getStorageAreaName(key);
+        const result = await this.getFromArea(area, { [key]: this.defaults[key] });
+        return result[key];
     },
 
     // 设置单个值
     async set(key, value) {
-        return new Promise((resolve) => {
-            chrome.storage.sync.set({ [key]: value }, () => {
-                resolve();
-            });
-        });
+        await this.ensureSensitiveDataMigration();
+        const area = this.getStorageAreaName(key);
+        await this.setToArea(area, { [key]: value });
     },
 
     // 设置多个值
     async setMultiple(data) {
-        return new Promise((resolve) => {
-            chrome.storage.sync.set(data, () => {
-                resolve();
-            });
+        await this.ensureSensitiveDataMigration();
+
+        const syncData = {};
+        const localData = {};
+
+        Object.entries(data).forEach(([key, value]) => {
+            if (this.getStorageAreaName(key) === 'local') {
+                localData[key] = value;
+            } else {
+                syncData[key] = value;
+            }
         });
+
+        if (Object.keys(syncData).length > 0) {
+            await this.setToArea('sync', syncData);
+        }
+
+        if (Object.keys(localData).length > 0) {
+            await this.setToArea('local', localData);
+        }
     },
 
     // ===== 提供商管理 =====
@@ -164,87 +190,119 @@ const Storage = {
         await this.set('prompts', prompts);
     },
 
-    // ===== 聊天历史（使用本地存储）=====
+    // ===== 按 URL 存储聊天历史 =====
 
-    // 获取聊天历史
-    async getChatHistory(tabId) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chats: {} }, (result) => {
-                resolve(result.chats[tabId] || []);
+    // 获取聊天历史（按URL）
+    async getChatHistoryByUrl(url) {
+        const result = await this.getFromArea('local', { chatsByUrl: {} });
+        return result.chatsByUrl[url] || [];
+    },
+
+    // 保存聊天历史（按URL）
+    async saveChatHistoryByUrl(url, messages) {
+        const result = await this.getFromArea('local', { chatsByUrl: {} });
+        result.chatsByUrl[url] = messages;
+        await this.setToArea('local', { chatsByUrl: result.chatsByUrl });
+    },
+
+    // 清除聊天历史（按URL）
+    async clearChatHistoryByUrl(url) {
+        const result = await this.getFromArea('local', { chatsByUrl: {} });
+        delete result.chatsByUrl[url];
+        await this.setToArea('local', { chatsByUrl: result.chatsByUrl });
+    },
+
+
+    // ===== 工具函数 =====
+
+    async ensureSensitiveDataMigration() {
+        if (!this.migrationPromise) {
+            this.migrationPromise = this.runSensitiveDataMigration();
+        }
+
+        return this.migrationPromise;
+    },
+
+    async runSensitiveDataMigration() {
+        const localData = await this.getFromArea('local', {
+            providers: this.defaults.providers,
+            activeProviderId: this.defaults.activeProviderId
+        });
+        const syncData = await this.getFromArea('sync', {
+            providers: this.defaults.providers,
+            activeProviderId: this.defaults.activeProviderId
+        });
+
+        const migrationData = {};
+        const shouldMigrateProviders = (!Array.isArray(localData.providers) || localData.providers.length === 0)
+            && Array.isArray(syncData.providers)
+            && syncData.providers.length > 0;
+
+        if (shouldMigrateProviders) {
+            migrationData.providers = syncData.providers;
+        }
+
+        const shouldMigrateActiveProvider = !localData.activeProviderId && !!syncData.activeProviderId;
+        if (shouldMigrateActiveProvider) {
+            migrationData.activeProviderId = syncData.activeProviderId;
+        }
+
+        if (Object.keys(migrationData).length > 0) {
+            await this.setToArea('local', migrationData);
+        }
+
+        await this.removeFromArea('sync', ['providers', 'activeProviderId']);
+    },
+
+    getStorageAreaName(key) {
+        return this.localKeys.has(key) ? 'local' : 'sync';
+    },
+
+    getStorageArea(area) {
+        return chrome.storage[area];
+    },
+
+    getFromArea(area, defaults) {
+        const storageArea = this.getStorageArea(area);
+        return new Promise((resolve, reject) => {
+            storageArea.get(defaults, (result) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+
+                resolve(result);
             });
         });
     },
 
-    // 保存聊天历史
-    async saveChatHistory(tabId, messages) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chats: {} }, (result) => {
-                result.chats[tabId] = messages;
-                chrome.storage.local.set({ chats: result.chats }, () => {
-                    resolve();
-                });
-            });
-        });
-    },
+    setToArea(area, data) {
+        const storageArea = this.getStorageArea(area);
+        return new Promise((resolve, reject) => {
+            storageArea.set(data, () => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
 
-    // 清除聊天历史
-    async clearChatHistory(tabId) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chats: {} }, (result) => {
-                delete result.chats[tabId];
-                chrome.storage.local.set({ chats: result.chats }, () => {
-                    resolve();
-                });
-            });
-        });
-    },
-
-    // 清除所有聊天历史
-    async clearAllChatHistory() {
-        return new Promise((resolve) => {
-            chrome.storage.local.set({ chats: {} }, () => {
                 resolve();
             });
         });
     },
 
-    // ===== 按 URL 存储聊天历史 =====
+    removeFromArea(area, keys) {
+        const storageArea = this.getStorageArea(area);
+        return new Promise((resolve, reject) => {
+            storageArea.remove(keys, () => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
 
-    // 获取聊天历史（按URL）
-    async getChatHistoryByUrl(url) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chatsByUrl: {} }, (result) => {
-                resolve(result.chatsByUrl[url] || []);
+                resolve();
             });
         });
     },
-
-    // 保存聊天历史（按URL）
-    async saveChatHistoryByUrl(url, messages) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chatsByUrl: {} }, (result) => {
-                result.chatsByUrl[url] = messages;
-                chrome.storage.local.set({ chatsByUrl: result.chatsByUrl }, () => {
-                    resolve();
-                });
-            });
-        });
-    },
-
-    // 清除聊天历史（按URL）
-    async clearChatHistoryByUrl(url) {
-        return new Promise((resolve) => {
-            chrome.storage.local.get({ chatsByUrl: {} }, (result) => {
-                delete result.chatsByUrl[url];
-                chrome.storage.local.set({ chatsByUrl: result.chatsByUrl }, () => {
-                    resolve();
-                });
-            });
-        });
-    },
-
-
-    // ===== 工具函数 =====
 
     // 生成唯一 ID
     generateId() {

@@ -49,7 +49,7 @@ const API = {
     },
 
     // 发送聊天请求（流式）
-    async streamChat(provider, messages, onChunk, onComplete, onError) {
+    async streamChat(provider, messages, onChunk, onComplete, onError, options = {}) {
         if (!provider) {
             onError(new Error('未配置模型提供商'));
             return;
@@ -78,7 +78,8 @@ const API = {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`
                 },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
+                signal: options.signal
             });
 
             console.log('[WebFly] 响应状态:', response.status, response.statusText);

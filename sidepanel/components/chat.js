@@ -6,6 +6,7 @@ const Chat = {
     isLoading: false,
     currentProvider: null,
     pageContent: null,
+    activeRequest: null,
 
     // 初始化
     async init() {
@@ -108,15 +109,11 @@ const Chat = {
 
                 // 检查URL是否变化
                 if (this.pageContent && this.pageContent.url !== newUrl) {
+                    this.abortActiveRequest('页面已切换，已取消当前请求');
                     console.log('[WebFly] URL变化，清空聊天历史');
                     this.messages = [];
-                    this.messagesContainer.innerHTML = `
-                        <div class="welcome-message">
-                            <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
-                            <h3>WebFly</h3>
-                            <p>Ready to help</p>
-                        </div>
-                    `;
+                    this.messagesContainer.innerHTML = '';
+                    this.renderWelcomeMessage();
                 }
 
                 this.pageContent = response.data;
@@ -127,10 +124,17 @@ const Chat = {
                 if (newUrl) {
                     await this.loadHistory();
                 }
+            } else {
+                const errorMessage = response?.error || '无法获取页面内容';
+                this.pageContent = null;
+                this.pageTitle.textContent = '无法获取页面信息';
+                this.pageUrl.textContent = errorMessage;
             }
         } catch (error) {
             console.log('无法获取页面内容:', error.message);
+            this.pageContent = null;
             this.pageTitle.textContent = '无法获取页面信息';
+            this.pageUrl.textContent = error.message || '';
         }
     },
 
@@ -187,47 +191,81 @@ const Chat = {
 
         // 设置超时
         let timeoutId = null;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => {
-                reject(new Error('请求超时（60秒），请检查网络连接或 API 配置'));
-            }, 60000);
-        });
 
         // 调用 API
         let fullResponse = '';
+        const requestId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const requestState = {
+            id: requestId,
+            controller: new AbortController(),
+            abortReason: ''
+        };
+        this.activeRequest = requestState;
 
-        const apiPromise = API.streamChat(
+        let isSettled = false;
+        const finishRequest = (handler) => {
+            if (isSettled) {
+                return;
+            }
+
+            isSettled = true;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+
+            if (this.activeRequest?.id === requestId) {
+                this.activeRequest = null;
+            }
+
+            handler();
+        };
+
+        timeoutId = setTimeout(() => {
+            requestState.abortReason = '请求超时（60秒），请检查网络连接或 API 配置';
+            requestState.controller.abort();
+        }, 60000);
+
+        await API.streamChat(
             this.currentProvider,
             apiMessages,
             // onChunk
             (chunk) => {
+                if (isSettled || this.activeRequest?.id !== requestId) {
+                    return;
+                }
+
                 fullResponse += chunk;
                 this.updateMessage(assistantMessage, fullResponse);
             },
             // onComplete
             (content) => {
-                if (timeoutId) clearTimeout(timeoutId);
-                this.finalizeMessage(assistantMessage, content);
-                this.setLoading(false);
-                this.saveHistory();
+                finishRequest(() => {
+                    this.finalizeMessage(assistantMessage, content);
+                    this.setLoading(false);
+                    this.saveHistory();
+                });
             },
             // onError
             (error) => {
-                if (timeoutId) clearTimeout(timeoutId);
-                console.error('[WebFly] Chat 错误:', error);
-                this.updateMessage(assistantMessage, `❌ 错误: ${error.message}`);
-                this.setLoading(false);
+                finishRequest(() => {
+                    console.error('[WebFly] Chat 错误:', error);
+
+                    const aborted = requestState.controller.signal.aborted || error?.name === 'AbortError';
+                    if (aborted) {
+                        if (requestState.abortReason) {
+                            this.updateMessage(assistantMessage, `❌ ${requestState.abortReason}`);
+                        }
+                    } else {
+                        this.updateMessage(assistantMessage, `❌ 错误: ${error.message}`);
+                    }
+
+                    this.setLoading(false);
+                });
+            },
+            {
+                signal: requestState.controller.signal
             }
         );
-
-        // 使用 Promise.race 处理超时
-        try {
-            await Promise.race([apiPromise, timeoutPromise]);
-        } catch (error) {
-            if (timeoutId) clearTimeout(timeoutId);
-            this.updateMessage(assistantMessage, `❌ ${error.message}`);
-            this.setLoading(false);
-        }
     },
 
     // 发送带 Prompt 的消息
@@ -297,19 +335,7 @@ const Chat = {
             contentEl.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
         } else {
             if (role === 'user' && isCollapsed && content.length > 100) {
-                // 用户长消息显示为链接卡片样式
-                const pageTitle = this.pageContent?.title || '页面内容';
-                const pageUrl = this.pageContent?.url || '';
-                const shortUrl = pageUrl.length > 50 ? pageUrl.slice(0, 50) + '...' : pageUrl;
-                contentEl.innerHTML = `
-                    <div class="message-link-card">
-                        <div class="link-icon">📄</div>
-                        <div class="link-info">
-                            <div class="link-title">${this.escapeHtml(pageTitle)}</div>
-                            <div class="link-url">${this.escapeHtml(shortUrl)}</div>
-                        </div>
-                    </div>
-                `;
+                this.renderCollapsedUserCard(contentEl, this.pageContent?.title, this.pageContent?.url);
             } else {
                 contentEl.innerHTML = role === 'assistant' ? Markdown.renderMessage(content) : this.escapeHtml(content);
             }
@@ -317,17 +343,7 @@ const Chat = {
 
         // 为assistant消息添加复制按钮
         if (role === 'assistant' && !isStreaming) {
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'copy-message-btn';
-            copyBtn.title = '复制内容';
-            copyBtn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-            `;
-            copyBtn.addEventListener('click', () => this.copyMessageContent(content, copyBtn));
-            messageEl.appendChild(copyBtn);
+            messageEl.appendChild(this.createMessageCopyButton(content));
         }
 
         messageEl.appendChild(contentEl);
@@ -362,7 +378,12 @@ const Chat = {
             // 消息完成后渲染 Mermaid 图表
             const contentEl = messageEl.querySelector('.message-content');
             if (contentEl) {
+                contentEl.innerHTML = Markdown.renderMessage(content);
                 Markdown.renderMermaidInElement(contentEl);
+            }
+
+            if (!messageEl.querySelector('.copy-message-btn')) {
+                messageEl.appendChild(this.createMessageCopyButton(content));
             }
         }
 
@@ -380,15 +401,7 @@ const Chat = {
         this.messagesContainer.innerHTML = '';
 
         if (this.messages.length === 0) {
-            // 如果没有消息，显示欢迎消息
-            const welcomeDiv = document.createElement('div');
-            welcomeDiv.className = 'welcome-message';
-            welcomeDiv.innerHTML = `
-                <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
-                <h3>WebFly</h3>
-                <p>Ready to help</p>
-            `;
-            this.messagesContainer.appendChild(welcomeDiv);
+            this.renderWelcomeMessage();
             return;
         }
 
@@ -403,18 +416,7 @@ const Chat = {
 
             // 检查是否需要以卡片形式显示
             if (msg.role === 'user' && msg.isCollapsed && msg.content.length > 100) {
-                const pageTitle = msg.pageTitle || '页面内容';
-                const pageUrl = msg.pageUrl || '';
-                const shortUrl = pageUrl.length > 50 ? pageUrl.slice(0, 50) + '...' : pageUrl;
-                contentEl.innerHTML = `
-                    <div class="message-link-card">
-                        <div class="link-icon">📄</div>
-                        <div class="link-info">
-                            <div class="link-title">${this.escapeHtml(pageTitle)}</div>
-                            <div class="link-url">${this.escapeHtml(shortUrl)}</div>
-                        </div>
-                    </div>
-                `;
+                this.renderCollapsedUserCard(contentEl, msg.pageTitle, msg.pageUrl);
             } else {
                 contentEl.innerHTML = msg.role === 'assistant'
                     ? Markdown.renderMessage(msg.content)
@@ -425,17 +427,7 @@ const Chat = {
 
             // 为assistant消息添加复制按钮
             if (msg.role === 'assistant') {
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'copy-message-btn';
-                copyBtn.title = '复制内容';
-                copyBtn.innerHTML = `
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                `;
-                copyBtn.addEventListener('click', () => this.copyMessageContent(msg.content, copyBtn));
-                messageEl.appendChild(copyBtn);
+                messageEl.appendChild(this.createMessageCopyButton(msg.content));
             }
 
             this.messagesContainer.appendChild(messageEl);
@@ -451,18 +443,11 @@ const Chat = {
 
     // 清空对话
     async clearChat() {
+        this.abortActiveRequest('对话已清空，已取消当前请求');
         this.messages = [];
         this.messagesContainer.innerHTML = ''; // 清空消息
 
-        // 可选：添加一个简单的欢迎占位
-        const welcomeDiv = document.createElement('div');
-        welcomeDiv.className = 'welcome-message';
-        welcomeDiv.innerHTML = `
-            <img class="welcome-icon" src="../icons/icon128.png" alt="WebFly" />
-            <h3>WebFly</h3>
-            <p>Ready to help</p>
-        `;
-        this.messagesContainer.appendChild(welcomeDiv);
+        this.renderWelcomeMessage();
 
         // 按 URL 清除聊天历史
         if (this.pageContent && this.pageContent.url) {
@@ -494,6 +479,64 @@ const Chat = {
     // 刷新提供商配置
     async refreshProvider() {
         await this.loadProvider();
+    },
+
+    abortActiveRequest(reason = '') {
+        if (!this.activeRequest) {
+            return;
+        }
+
+        this.activeRequest.abortReason = reason;
+        this.activeRequest.controller.abort();
+    },
+
+    renderWelcomeMessage() {
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'welcome-message';
+
+        const welcomeIcon = document.createElement('img');
+        welcomeIcon.className = 'welcome-icon';
+        welcomeIcon.src = '../icons/icon128.png';
+        welcomeIcon.alt = 'WebFly';
+
+        const welcomeTitle = document.createElement('h3');
+        welcomeTitle.textContent = 'WebFly';
+
+        const welcomeText = document.createElement('p');
+        welcomeText.textContent = 'Ready to help';
+
+        welcomeDiv.append(welcomeIcon, welcomeTitle, welcomeText);
+        this.messagesContainer.appendChild(welcomeDiv);
+    },
+
+    renderCollapsedUserCard(container, pageTitle, pageUrl) {
+        const title = pageTitle || '页面内容';
+        const url = pageUrl || '';
+        const shortUrl = url.length > 50 ? `${url.slice(0, 50)}...` : url;
+
+        container.innerHTML = `
+            <div class="message-link-card">
+                <div class="link-icon">📄</div>
+                <div class="link-info">
+                    <div class="link-title">${this.escapeHtml(title)}</div>
+                    <div class="link-url">${this.escapeHtml(shortUrl)}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    createMessageCopyButton(content) {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-message-btn';
+        copyBtn.title = '复制内容';
+        copyBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        `;
+        copyBtn.addEventListener('click', () => this.copyMessageContent(content, copyBtn));
+        return copyBtn;
     },
 
     // 复制页面内容

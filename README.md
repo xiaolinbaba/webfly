@@ -78,9 +78,10 @@ cd webfly
 
 ## 🔒 隐私安全
 
-- ✅ API Key 仅存储在用户本地
-- ✅ 不上传任何数据到第三方服务器
+- ✅ API Key 和模型提供商配置仅存储在本地浏览器
 - ✅ 聊天历史本地存储
+- ✅ 页面内容只会发送给你主动配置的模型提供商
+- ✅ 不会上传到项目作者维护的服务器
 - ✅ 开源代码，可审计
 
 ## 📖 开发说明
@@ -93,8 +94,6 @@ webfly/
 ├── icons/                  # 图标资源
 ├── background/            # 后台服务
 │   └── service-worker.js
-├── content/               # 内容脚本
-│   └── content.js
 └── sidepanel/             # 侧边栏界面
     ├── index.html
     ├── styles.css
